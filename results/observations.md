@@ -9,7 +9,9 @@
 
 - siteswithcontent.com is v sus
 
-- najva appears to be a Persian provider
+- Apparent Persian providers:
+  - najva
+  - pushe.co
 
 - promizer appears to be another Persian site
 
