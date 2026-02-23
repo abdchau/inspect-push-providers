@@ -1,0 +1,6 @@
+.vscode/
+output/
+dataset/
+data/
+.env
+other.py
