@@ -212,6 +212,27 @@ def main() -> None:
     clusters = build_clusters(pairs, path_to_urls)
     deduplicated = build_deduplicated_list(path_to_hash, clusters)
 
+    # Log cluster stats
+    sizes = [len(c["members"]) for c in clusters]
+    size_dist: dict[int, int] = {}
+    for s in sizes:
+        size_dist[s] = size_dist.get(s, 0) + 1
+    logger.info(
+        "Cluster size distribution: %s",
+        dict(sorted(size_dist.items())),
+    )
+    if clusters:
+        max_size = max(sizes)
+        largest = next(c for c in clusters if len(c["members"]) == max_size)
+        logger.info(
+            "Largest cluster: %d members (representative: %s)",
+            max_size,
+            largest["representative"],
+        )
+    files_in_clusters = sum(len(c["members"]) for c in clusters)
+    singletons = len(path_to_hash) - files_in_clusters
+    logger.info("Files in clusters: %d; singletons (no similar match): %d", files_in_clusters, singletons)
+
     pairs_path = os.path.join(SSDEEP_OUTPUT_DIR, "ssdeep-pairs.json")
     clusters_path = os.path.join(SSDEEP_OUTPUT_DIR, "ssdeep-clusters.json")
     dedup_path = os.path.join(SSDEEP_OUTPUT_DIR, "deduplicated.json")
