@@ -19,6 +19,12 @@ ALL_OUT_PATH = "./output/"
 DATASET_PATH = "./dataset/"
 
 
+class CrawlResult:
+    SUCCESS = 0
+    ALREADY_CRAWLED = 1
+    FAIL = 2
+
+
 def new():
     with open(
         os.path.join(
@@ -46,43 +52,52 @@ def download_with_record(
     urls: list[str], out_path: str = f".{ALL_OUT_PATH}/unknown-providers/"
 ):
     try:
-        with open(
-            os.path.join(ALL_OUT_PATH, "unknown-providers-records.json"), "r"
-        ) as f:
-            records = json.load(f)
+        with open(os.path.join(ALL_OUT_PATH, "unknown-providers-index.json"), "r") as f:
+            crawled_index = json.load(f)
     except FileNotFoundError:
-        records = {}
+        crawled_index = {}
 
-    count = len(records)
+    count = len(crawled_index)
 
-    try:
-        last_downloaded = list(records.keys())[-1]
-        resume_idx = urls.index(last_downloaded) + 1
-    except IndexError:
-        last_downloaded = None
-        resume_idx = 0
+    # try:
+    #     last_downloaded = list(records.keys())[-1]
+    #     resume_idx = urls.index(last_downloaded) + 1
+    # except IndexError:
+    #     last_downloaded = None
+    #     resume_idx = 0
+
+    resume_idx = count
 
     for url in tqdm(urls[resume_idx:]):
-        if download_file(
+        crawl_result = download_file(
             url,
             os.path.join(out_path, f"{count}.js"),
-        ):
-            records[url] = os.path.join(out_path, f"{count}.js")
+            crawled_index,
+        )
+        if crawl_result == CrawlResult.SUCCESS:
+            crawled_index[url] = count
             count += 1
 
-            with open(
-                os.path.join(ALL_OUT_PATH, "unknown-providers-records.json"), "w"
-            ) as f:
-                json.dump(records, f, indent=2)
+        elif crawl_result == CrawlResult.ALREADY_CRAWLED:
+            continue
+        elif crawl_result == CrawlResult.FAIL:
+            crawled_index[url] = None
+
+        with open(os.path.join(ALL_OUT_PATH, "unknown-providers-index.json"), "w") as f:
+            json.dump(crawled_index, f, indent=2)
 
     return count
 
 
-def download_file(url, path):
+def download_file(url, path, crawled_index):
     logger.debug(f"Downloading {url} to {path}")
+    if url in crawled_index:
+        logger.debug(f"{url} already crawled")
+        return CrawlResult.ALREADY_CRAWLED
+
     if os.path.exists(path):
-        logger.error(f"{path} already exists")
-        return
+        # logger.error(f"{path} already exists")
+        raise FileExistsError(f"{path} already exists")
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -91,7 +106,7 @@ def download_file(url, path):
         if response.status_code == 200:
             with open(path, "wb") as f:
                 f.write(response.content)
-            return True
+            return CrawlResult.SUCCESS
         else:
             logger.debug(f"{url} is not valid")
             logger.debug(response.status_code)
@@ -101,7 +116,7 @@ def download_file(url, path):
         logger.debug(e)
         # exit()
 
-    return False
+    return CrawlResult.FAIL
 
 
 def matches_pattern(pattern, string):
@@ -111,7 +126,7 @@ def matches_pattern(pattern, string):
 def check_for_static_or_cdn():
     with open(
         os.path.join(
-            ALL_OUT_PATH, "serviceworkers_origins_urls_and_imported_scripts.json"
+            DATASET_PATH, "serviceworkers_origins_urls_and_imported_scripts.json"
         ),
         "r",
     ) as f:
@@ -133,6 +148,7 @@ def check_for_static_or_cdn():
         "cloudflare",
         "static.im-cdn.com/mjc/storefront/",
         "cdn-my.promizer.com/api/public/sdk/platforms/",
+        "netlify",
     }
 
     regexes = [
@@ -181,6 +197,9 @@ def remove_known_providers():
     with open(os.path.join(ALL_OUT_PATH, "static_or_cdn.json"), "r") as f:
         static_or_cdn_sws = set(json.load(f))
 
+    with open(os.path.join(ALL_OUT_PATH, "no_static_or_cdn.json"), "r") as f:
+        no_static_or_cdn_sws = set(json.load(f))
+
     with open(os.path.join(DATASET_PATH, "known-providers.json"), "r") as f:
         known_providers = json.load(f)
 
@@ -189,7 +208,7 @@ def remove_known_providers():
     instances_of_providers["unknown"] = 0
 
     no_known_provider = set()
-    for sw in tqdm(static_or_cdn_sws):
+    for sw in tqdm(static_or_cdn_sws.union(no_static_or_cdn_sws)):
         flag = False
         for provider in known_providers:
             if provider in sw:

@@ -23,3 +23,5 @@
 
 - glideapp service workers are common
   - these have WPNs as well
+
+- perfecty.org: self-hosted push notification service
