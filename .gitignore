@@ -3,5 +3,5 @@ output/
 dataset/
 data/
 .env
-other.py
+other*.py
 __pycache__/
