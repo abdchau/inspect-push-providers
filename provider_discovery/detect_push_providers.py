@@ -3,10 +3,13 @@ Detect push notification providers (e.g. OneSignal, Braze) in the contents of
 deduplicated files from output/ssdeep-comparison/deduplicated.json.
 Reads dataset/known-providers.json and outputs file-to-providers mapping and summary.
 """
+
 import json
 import logging
 import os
 import re
+
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -93,7 +96,7 @@ def main() -> None:
     push_related_files = 0
     not_push_related_files = 0
 
-    for rel_path in paths:
+    for rel_path in tqdm(paths):
         full_path = os.path.join(OUTPUT_DIR, rel_path)
         if not os.path.isfile(full_path):
             missing.append(rel_path)
@@ -121,8 +124,12 @@ def main() -> None:
         logger.warning("Missing files: %d", len(missing))
 
     os.makedirs(DETECTION_OUTPUT_DIR, exist_ok=True)
-    file_to_providers_path = os.path.join(DETECTION_OUTPUT_DIR, "file-to-providers.json")
-    file_to_providers_with_hits = {p: plist for p, plist in file_to_providers.items() if plist}
+    file_to_providers_path = os.path.join(
+        DETECTION_OUTPUT_DIR, "file-to-providers.json"
+    )
+    file_to_providers_with_hits = {
+        p: plist for p, plist in file_to_providers.items() if plist
+    }
     with open(file_to_providers_path, "w") as f:
         json.dump(file_to_providers_with_hits, f, indent=2)
     logger.info("Wrote %s", file_to_providers_path)

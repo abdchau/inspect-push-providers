@@ -1,7 +1,8 @@
 """
 Compare files in output/unknown-providers/ for similarity using ssdeep fuzzy hashing.
-Reads output/unknown-providers-records.json for URL mapping, emits pairs, clusters,
-and a deduplicated file list.
+Reads output/unknown-providers-index.json (URL -> index number; None = not downloaded)
+for URL mapping. Only successfully downloaded files (non-null index) are included.
+Emits pairs, clusters, and a deduplicated file list.
 """
 
 import json
@@ -22,26 +23,29 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 SSDEEP_OUTPUT_DIR = os.path.join(OUTPUT_DIR, "ssdeep-comparison")
 PROVIDERS_DIR = os.path.join(OUTPUT_DIR, "unknown-providers")
-RECORDS_PATH = os.path.join(OUTPUT_DIR, "unknown-providers-records.json")
+INDEX_PATH = os.path.join(OUTPUT_DIR, "unknown-providers-index.json")
 
 # Similarity threshold: >= 90 = near-duplicate, include in clusters
 SIMILARITY_THRESHOLD = 90
 
 
-def load_records(records_path: str) -> tuple[dict[str, list[str]], set[str]]:
+def load_index(index_path: str) -> tuple[dict[str, list[str]], set[str]]:
     """
-    Load URL -> path records and build path -> list of URLs.
-    Returns (path_to_urls, set of normalized paths).
+    Load URL -> index from unknown-providers-index.json. Index is an int (file is
+    unknown-providers/{index}.js) or None (download failed; skipped).
+    Returns (path_to_urls, set of normalized paths) for successfully downloaded files only.
     """
-    with open(records_path, "r") as f:
-        records = json.load(f)
+    with open(index_path, "r") as f:
+        index = json.load(f)
     path_to_urls: dict[str, list[str]] = {}
-    for url, path in records.items():
-        # Normalize path to use forward slashes and no leading ./
-        normalized = path.replace("\\", "/").lstrip("./")
-        if normalized not in path_to_urls:
-            path_to_urls[normalized] = []
-        path_to_urls[normalized].append(url)
+    for url, value in index.items():
+        if value is None:
+            continue
+        # value is the index number; file is unknown-providers/{index}.js
+        rel_path = f"unknown-providers/{value}.js"
+        if rel_path not in path_to_urls:
+            path_to_urls[rel_path] = []
+        path_to_urls[rel_path].append(url)
     return path_to_urls, set(path_to_urls.keys())
 
 
@@ -128,9 +132,15 @@ def build_clusters(pairs: list[dict], path_to_urls: dict[str, list[str]]) -> lis
     def find(x: str) -> str:
         if x not in parent:
             parent[x] = x
-        if parent[x] != x:
-            parent[x] = find(parent[x])
-        return parent[x]
+        # Iterative find with path compression to avoid RecursionError on large sets
+        stack: list[str] = []
+        while parent[x] != x:
+            stack.append(x)
+            x = parent[x]
+        root = x
+        for node in stack:
+            parent[node] = root
+        return root
 
     def union(x: str, y: str) -> None:
         px, py = find(x), find(y)
@@ -191,11 +201,11 @@ def main() -> None:
         except ValueError:
             pass
 
-    if not os.path.isfile(RECORDS_PATH):
-        logger.error("Records not found: %s", RECORDS_PATH)
+    if not os.path.isfile(INDEX_PATH):
+        logger.error("Index not found: %s", INDEX_PATH)
         sys.exit(1)
 
-    path_to_urls, _ = load_records(RECORDS_PATH)
+    path_to_urls, _ = load_index(INDEX_PATH)
     path_to_hash, no_hash = hash_all_files(PROVIDERS_DIR, path_to_urls)
 
     os.makedirs(SSDEEP_OUTPUT_DIR, exist_ok=True)

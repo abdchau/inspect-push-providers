@@ -4,6 +4,8 @@ import pandas as pd
 import logging
 import re
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -49,7 +51,7 @@ def new():
 
 
 def download_with_record(
-    urls: list[str], out_path: str = f".{ALL_OUT_PATH}/unknown-providers/"
+    urls: list[str], out_path: str = os.path.join(ALL_OUT_PATH, "unknown-providers")
 ):
     try:
         with open(os.path.join(ALL_OUT_PATH, "unknown-providers-index.json"), "r") as f:
@@ -57,36 +59,61 @@ def download_with_record(
     except FileNotFoundError:
         crawled_index = {}
 
-    count = len(crawled_index)
+    count = len([k for k in crawled_index if crawled_index[k] is not None])
+    urls_to_fetch = [u for u in urls if u not in crawled_index]
+    index_path = os.path.join(ALL_OUT_PATH, "unknown-providers-index.json")
+    lock = Lock()
 
-    # try:
-    #     last_downloaded = list(records.keys())[-1]
-    #     resume_idx = urls.index(last_downloaded) + 1
-    # except IndexError:
-    #     last_downloaded = None
-    #     resume_idx = 0
+    os.makedirs(out_path, exist_ok=True)
 
-    resume_idx = count
+    def process_result(url, crawl_result, content):
+        nonlocal count
+        with lock:
+            if crawl_result == CrawlResult.ALREADY_CRAWLED:
+                return
 
-    for url in tqdm(urls[resume_idx:]):
-        crawl_result = download_file(
-            url,
-            os.path.join(out_path, f"{count}.js"),
-            crawled_index,
-        )
-        if crawl_result == CrawlResult.SUCCESS:
-            crawled_index[url] = count
-            count += 1
+            if crawl_result == CrawlResult.SUCCESS:
+                path = os.path.join(out_path, f"{count}.js")
+                with open(path, "wb") as f:
+                    f.write(content)
+                crawled_index[url] = count
+                count += 1
+            elif crawl_result == CrawlResult.FAIL:
+                crawled_index[url] = None
+            # ALREADY_CRAWLED: not possible for urls_to_fetch
+            with open(index_path, "w") as f:
+                json.dump(crawled_index, f, indent=2)
 
-        elif crawl_result == CrawlResult.ALREADY_CRAWLED:
-            continue
-        elif crawl_result == CrawlResult.FAIL:
-            crawled_index[url] = None
-
-        with open(os.path.join(ALL_OUT_PATH, "unknown-providers-index.json"), "w") as f:
-            json.dump(crawled_index, f, indent=2)
+    with ThreadPoolExecutor(max_workers=30) as executor:
+        future_to_url = {
+            executor.submit(fetch_url, url, crawled_index): url for url in urls_to_fetch
+        }
+        for future in tqdm(as_completed(future_to_url), total=len(future_to_url)):
+            url = future_to_url[future]
+            try:
+                crawl_result, content = future.result()
+                process_result(url, crawl_result, content)
+            except Exception as e:
+                logger.exception(e)
+                process_result(url, CrawlResult.FAIL, None)
 
     return count
+
+
+def fetch_url(url, crawled_index):
+    if url in crawled_index:
+        return (CrawlResult.ALREADY_CRAWLED, None)
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            return (CrawlResult.SUCCESS, response.content)
+        else:
+            logger.debug(f"{url} is not valid")
+            logger.debug(response.status_code)
+    except requests.exceptions.RequestException as e:
+        logger.debug(f"{url} is not valid")
+        logger.debug(e)
+    return (CrawlResult.FAIL, None)
 
 
 def download_file(url, path, crawled_index):

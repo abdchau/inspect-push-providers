@@ -13,6 +13,8 @@ import sys
 from collections import defaultdict
 from urllib.parse import urlparse
 
+from tqdm import tqdm
+
 # Allow importing from same package (scripts/)
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
@@ -154,7 +156,7 @@ def main() -> None:
     max_examples_per_domain = 3
     push_related_no_provider_count = 0
 
-    for rel_path in paths:
+    for rel_path in tqdm(paths):
         if rel_path in paths_with_known:
             continue
         full_path = os.path.join(OUTPUT_DIR, rel_path)
