@@ -9,20 +9,16 @@ import json
 import logging
 import os
 import re
-import sys
 from collections import defaultdict
 from urllib.parse import urlparse
 
 from tqdm import tqdm
 
-# Allow importing from same package (scripts/)
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
-from detect_push_providers import (
+from constants import ALL_OUT_PATH
+
+from provider_discovery.detect_push_providers import (
     DEDUPLICATED_PATH,
     DETECTION_OUTPUT_DIR,
-    OUTPUT_DIR,
     is_push_related,
 )
 
@@ -159,7 +155,7 @@ def main() -> None:
     for rel_path in tqdm(paths):
         if rel_path in paths_with_known:
             continue
-        full_path = os.path.join(OUTPUT_DIR, rel_path)
+        full_path = os.path.join(ALL_OUT_PATH, rel_path)
         if not os.path.isfile(full_path):
             continue
         try:

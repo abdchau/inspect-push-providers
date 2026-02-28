@@ -13,12 +13,13 @@ from tqdm import tqdm
 
 import requests
 
+from provider_discovery.detect_push_providers import (
+    DETECTION_OUTPUT_DIR,
+)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
-DETECTION_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output", "push-provider-detection")
 DOMAINS_PATH = os.path.join(
     DETECTION_OUTPUT_DIR, "candidate-unknown-providers-domains.json"
 )
@@ -106,10 +107,14 @@ def main() -> None:
         "content_match_counts": match_counts,
     }
 
-    results_with_match = [r for r in results if r.get("visit_worked") and r.get("content_match")]
+    results_with_match = [
+        r for r in results if r.get("visit_worked") and r.get("content_match")
+    ]
     out_path = os.path.join(DETECTION_OUTPUT_DIR, "domain-visit-results.json")
     stats_path = os.path.join(DETECTION_OUTPUT_DIR, "domain-visit-stats.json")
-    matched_path = os.path.join(DETECTION_OUTPUT_DIR, "domain-visit-matched-domains.json")
+    matched_path = os.path.join(
+        DETECTION_OUTPUT_DIR, "domain-visit-matched-domains.json"
+    )
     os.makedirs(DETECTION_OUTPUT_DIR, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
@@ -120,7 +125,11 @@ def main() -> None:
 
     logger.info("Wrote %s", out_path)
     logger.info("Wrote %s", stats_path)
-    logger.info("Wrote %s (%d domains with content match)", matched_path, len(results_with_match))
+    logger.info(
+        "Wrote %s (%d domains with content match)",
+        matched_path,
+        len(results_with_match),
+    )
     logger.info(
         "Stats: total=%d, visit_worked=%d, visit_failed=%d",
         len(domains),

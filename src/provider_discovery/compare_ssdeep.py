@@ -14,16 +14,15 @@ from itertools import combinations
 import ssdeep
 from tqdm import tqdm
 
+from constants import ALL_OUT_PATH
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Default paths (run from project root)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
-SSDEEP_OUTPUT_DIR = os.path.join(OUTPUT_DIR, "ssdeep-comparison")
-PROVIDERS_DIR = os.path.join(OUTPUT_DIR, "unknown-providers")
-INDEX_PATH = os.path.join(OUTPUT_DIR, "unknown-providers-index.json")
+SSDEEP_OUTPUT_DIR = os.path.join(ALL_OUT_PATH, "ssdeep-comparison")
+PROVIDERS_DIR = os.path.join(ALL_OUT_PATH, "unknown-providers")
+INDEX_PATH = os.path.join(ALL_OUT_PATH, "unknown-providers-index.json")
 
 # Similarity threshold: >= 90 = near-duplicate, include in clusters
 SIMILARITY_THRESHOLD = 90
@@ -69,7 +68,7 @@ def hash_all_files(
                 all_paths.add(rel)
 
     for rel_path in tqdm(sorted(all_paths), desc="Hashing files"):
-        full_path = os.path.join(OUTPUT_DIR, rel_path)
+        full_path = os.path.join(ALL_OUT_PATH, rel_path)
         if not os.path.isfile(full_path):
             no_hash.append(rel_path)
             continue
@@ -241,7 +240,11 @@ def main() -> None:
         )
     files_in_clusters = sum(len(c["members"]) for c in clusters)
     singletons = len(path_to_hash) - files_in_clusters
-    logger.info("Files in clusters: %d; singletons (no similar match): %d", files_in_clusters, singletons)
+    logger.info(
+        "Files in clusters: %d; singletons (no similar match): %d",
+        files_in_clusters,
+        singletons,
+    )
 
     pairs_path = os.path.join(SSDEEP_OUTPUT_DIR, "ssdeep-pairs.json")
     clusters_path = os.path.join(SSDEEP_OUTPUT_DIR, "ssdeep-clusters.json")

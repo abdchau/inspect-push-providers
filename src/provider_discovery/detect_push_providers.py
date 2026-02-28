@@ -11,16 +11,15 @@ import re
 
 from tqdm import tqdm
 
+from constants import ALL_OUT_PATH, DATASET_PATH
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Paths (run from project root)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
-DETECTION_OUTPUT_DIR = os.path.join(OUTPUT_DIR, "push-provider-detection")
-DEDUPLICATED_PATH = os.path.join(OUTPUT_DIR, "ssdeep-comparison", "deduplicated.json")
-KNOWN_PROVIDERS_PATH = os.path.join(PROJECT_ROOT, "dataset", "known-providers.json")
+DETECTION_OUTPUT_DIR = os.path.join(ALL_OUT_PATH, "push-provider-detection")
+DEDUPLICATED_PATH = os.path.join(ALL_OUT_PATH, "ssdeep-comparison", "deduplicated.json")
+KNOWN_PROVIDERS_PATH = os.path.join(DATASET_PATH, "known-providers.json")
 
 
 def load_deduplicated(path: str) -> list[str]:
@@ -97,7 +96,7 @@ def main() -> None:
     not_push_related_files = 0
 
     for rel_path in tqdm(paths):
-        full_path = os.path.join(OUTPUT_DIR, rel_path)
+        full_path = os.path.join(ALL_OUT_PATH, rel_path)
         if not os.path.isfile(full_path):
             missing.append(rel_path)
             file_to_providers[rel_path] = []
